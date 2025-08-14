@@ -1,13 +1,7 @@
 const { nanoid } = require('nanoid');
 const { sendJson } = require('./_http');
-const { insertTask, insertKeyword } = require('./db');
-const {
-  sha256Hex,
-  generateKeywords,
-  youtubeSearch,
-  youtubeChannelsStats,
-  youtubeVideosStats,
-} = require('./utils');
+const { createTask, addKeyword } = require('./storage');
+const { sha256Hex, generateKeywords } = require('./utils');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
@@ -22,7 +16,7 @@ module.exports = async (req, res) => {
 
     const taskId = nanoid(12);
     const apiKeyHash = sha256Hex(apiKey);
-    insertTask.run({
+    createTask({
       id: taskId,
       product_name: productName,
       api_key_hash: apiKeyHash,
@@ -31,7 +25,6 @@ module.exports = async (req, res) => {
       max_results: Number(maxResults),
       status: 'running',
       progress: 0,
-      created_at: Date.now(),
     });
 
     // Initialize keywords for stepwise polling
@@ -39,7 +32,7 @@ module.exports = async (req, res) => {
     if (!Array.isArray(keywords) || keywords.length === 0) {
       return sendJson(res, 400, { error: 'Failed to generate keywords' });
     }
-    for (const kw of keywords) insertKeyword.run(taskId, kw);
+    for (const kw of keywords) addKeyword(taskId, kw);
     return sendJson(res, 200, { taskId, keywords });
   } catch (e) {
     return sendJson(res, 500, { error: e?.response?.data?.error?.message || e.message || 'Internal error' });

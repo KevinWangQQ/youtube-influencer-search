@@ -1,12 +1,12 @@
 const { sendJson } = require('./_http');
-const { selectTask, selectInfluencersByTask } = require('./db');
+const { getTask, getInfluencersByTask } = require('./storage');
 
 module.exports = async (req, res) => {
   const { task_id } = req.query || {};
   if (!task_id) return sendJson(res, 400, { error: 'task_id is required' });
-  const task = selectTask.get(task_id);
+  const task = getTask(task_id);
   if (!task) return sendJson(res, 404, { error: 'Task not found' });
-  const list = selectInfluencersByTask.all(task_id);
+  const list = getInfluencersByTask(task_id);
   const summary = {
     count: list.length,
     maxSubscribers: list.reduce((m, r) => Math.max(m, r.subscribers), 0),

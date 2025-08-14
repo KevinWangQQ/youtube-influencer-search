@@ -1,5 +1,5 @@
 const { sendCsv, sendJson } = require('./_http');
-const { selectInfluencersByTask, selectTask } = require('./db');
+const { getInfluencersByTask, getTask } = require('./storage');
 
 function toCsv(rows) {
   const header = [
@@ -32,9 +32,9 @@ function toCsv(rows) {
 module.exports = async (req, res) => {
   const { task_id } = req.query || {};
   if (!task_id) return sendJson(res, 400, { error: 'task_id is required' });
-  const task = selectTask.get(task_id);
+  const task = getTask(task_id);
   if (!task) return sendJson(res, 404, { error: 'Task not found' });
-  const rows = selectInfluencersByTask.all(task_id);
+  const rows = getInfluencersByTask(task_id);
   const csv = toCsv(rows);
   return sendCsv(res, 200, `results_${task_id}.csv`, csv);
 };

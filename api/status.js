@@ -1,13 +1,12 @@
 const { sendJson } = require('./_http');
 const {
-  selectTask,
+  getTask,
   updateTask,
-  selectNextKeyword,
+  getNextKeyword,
   markKeywordDone,
-  countAllKeywords,
-  countProcessedKeywords,
-  insertInfluencer,
-} = require('./db');
+  countKeywords,
+  addInfluencer,
+} = require('./storage');
 const { youtubeSearch, youtubeChannelsStats, youtubeVideosStats } = require('./utils');
 
 module.exports = async (req, res) => {
@@ -15,7 +14,7 @@ module.exports = async (req, res) => {
   if (!task_id) {
     return sendJson(res, 400, { error: 'task_id is required' });
   }
-  const task = selectTask.get(task_id);
+  const task = getTask(task_id);
   if (!task) {
     return sendJson(res, 404, { error: 'Task not found' });
   }
@@ -28,9 +27,9 @@ module.exports = async (req, res) => {
     // Process one keyword per poll using the hashed key is not enough; we must require client to pass apiKey again for each poll.
     const apiKey = req.headers['x-youtube-key'] || '';
     if (!apiKey) return sendJson(res, 400, { error: 'Missing X-YouTube-Key header' });
-    const next = selectNextKeyword.get(task_id);
+    const next = getNextKeyword(task_id);
     if (!next) {
-      updateTask.run({ id: task_id, status: 'completed', progress: 100 });
+      updateTask(task_id, { status: 'completed', progress: 100 });
       return sendJson(res, 200, { id: task.id, status: 'completed', progress: 100, productName: task.product_name, createdAt: task.created_at });
     }
 
@@ -50,7 +49,7 @@ module.exports = async (req, res) => {
       if (!channel || !video) continue;
       if (channel.subscribers < task.min_subscribers) continue;
       if (video.views < task.min_views) continue;
-      insertInfluencer.run({
+      addInfluencer({
         task_id: task_id,
         channel_id: channelId,
         channel_title: channel.title,
@@ -62,17 +61,17 @@ module.exports = async (req, res) => {
         views: video.views,
       });
     }
-    markKeywordDone.run(next.id);
+    markKeywordDone(next.id);
 
-    const total = countAllKeywords.get(task_id).c;
-    const done = countProcessedKeywords.get(task_id).c;
+    const total = countKeywords(task_id);
+    const done = countKeywords(task_id, 1);
     const progress = total > 0 ? Math.round((done / total) * 100) : 100;
     const status = done >= total ? 'completed' : 'running';
-    updateTask.run({ id: task_id, status, progress });
+    updateTask(task_id, { status, progress });
 
     return sendJson(res, 200, { id: task.id, status, progress, productName: task.product_name, createdAt: task.created_at });
   } catch (e) {
-    updateTask.run({ id: task_id, status: 'failed', progress: 100 });
+    updateTask(task_id, { status: 'failed', progress: 100 });
     return sendJson(res, 200, { id: task.id, status: 'failed', progress: 100, productName: task.product_name, createdAt: task.created_at, error: e.message });
   }
 };
