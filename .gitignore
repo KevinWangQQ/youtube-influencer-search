@@ -109,7 +109,6 @@ Thumbs.db
 
 # 项目特定文件
 *.csv
-database.db
 temp/
 .env.example
 config_test.py
