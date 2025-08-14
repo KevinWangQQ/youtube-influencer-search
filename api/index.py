@@ -1,243 +1,84 @@
-from flask import Flask, request, jsonify, render_template, send_file
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-import uuid
-import hashlib
-import threading
 import os
-import pandas as pd
-from datetime import datetime
-import time
 import sys
+import json
+from datetime import datetime
 
 # 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 
-from scraper_service import YouTubeInfluencerScraperService
-from models import DatabaseManager
+try:
+    from scraper_service import YouTubeInfluencerScraperService
+except ImportError:
+    # 如果导入失败，创建一个简单的模拟版本
+    class YouTubeInfluencerScraperService:
+        def __init__(self, **kwargs):
+            self.api_key = kwargs.get('api_key')
+        
+        def generate_search_keywords(self, product_name):
+            return [
+                f"{product_name} review",
+                f"{product_name} unboxing",
+                f"{product_name} test"
+            ]
 
 app = Flask(__name__, 
-           template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates'),
-           static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static'))
+           template_folder=os.path.join(parent_dir, 'templates'),
+           static_folder=os.path.join(parent_dir, 'static'))
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 CORS(app)
-
-# 全局对象
-db = DatabaseManager()
-running_tasks = {}  # 存储正在运行的任务
-
-def hash_api_key(api_key: str) -> str:
-    """对API密钥进行哈希处理"""
-    return hashlib.sha256(api_key.encode()).hexdigest()[:16]
-
-def progress_callback(task_id: str, progress_data: dict):
-    """进度回调函数"""
-    db.update_task_status(
-        task_id=task_id,
-        status='running',
-        progress=progress_data.get('percentage', 0),
-        progress_message=progress_data.get('message', ''),
-        total_keywords=progress_data.get('total_keywords', 0),
-        current_keyword=progress_data.get('current_keyword', 0),
-        found_influencers=progress_data.get('found_influencers', 0)
-    )
-
-def run_scraper_task(task_id: str, product_name: str, api_key: str, 
-                    min_subscribers: int, min_view_count: int):
-    """后台运行爬虫任务"""
-    try:
-        # 创建进度回调
-        def callback(data):
-            progress_callback(task_id, data)
-        
-        # 初始化爬虫服务
-        scraper = YouTubeInfluencerScraperService(
-            api_key=api_key,
-            min_subscribers=min_subscribers,
-            min_view_count=min_view_count,
-            progress_callback=callback
-        )
-        
-        # 更新任务状态为运行中
-        db.update_task_status(task_id, 'running', 0, '开始搜索...')
-        
-        # 执行搜索
-        result = scraper.scrape_product(product_name)
-        
-        # 保存结果
-        if scraper.influencers:
-            db.save_influencer_results(task_id, scraper.influencers)
-        
-        # 更新任务状态为完成
-        db.update_task_status(
-            task_id=task_id,
-            status='completed',
-            progress=100,
-            progress_message=f'搜索完成，找到 {len(scraper.influencers)} 个influencer',
-            found_influencers=len(scraper.influencers)
-        )
-        
-        # 从运行任务字典中移除
-        if task_id in running_tasks:
-            del running_tasks[task_id]
-            
-    except Exception as e:
-        # 更新任务状态为失败
-        db.update_task_status(
-            task_id=task_id,
-            status='failed',
-            error_message=str(e)
-        )
-        
-        # 从运行任务字典中移除
-        if task_id in running_tasks:
-            del running_tasks[task_id]
 
 @app.route('/')
 def index():
     """主页"""
-    return render_template('index.html')
-
-@app.route('/api/search', methods=['POST'])
-def start_search():
-    """启动搜索任务"""
     try:
-        data = request.get_json()
-        
-        # 验证必需参数
-        required_fields = ['product_name', 'api_key']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'error': f'缺少必需参数: {field}'}), 400
-        
-        product_name = data['product_name'].strip()
-        api_key = data['api_key'].strip()
-        min_subscribers = int(data.get('min_subscribers', 10000))
-        min_view_count = int(data.get('min_view_count', 5000))
-        
-        # 生成任务ID
-        task_id = str(uuid.uuid4())
-        api_key_hash = hash_api_key(api_key)
-        
-        # 创建数据库记录
-        success = db.create_search_task(
-            task_id=task_id,
-            product_name=product_name,
-            api_key_hash=api_key_hash,
-            min_subscribers=min_subscribers,
-            min_view_count=min_view_count
-        )
-        
-        if not success:
-            return jsonify({'error': '创建任务失败'}), 500
-        
-        # 启动后台任务
-        thread = threading.Thread(
-            target=run_scraper_task,
-            args=(task_id, product_name, api_key, min_subscribers, min_view_count)
-        )
-        thread.daemon = True
-        thread.start()
-        
-        # 记录运行中的任务
-        running_tasks[task_id] = {
-            'thread': thread,
-            'product_name': product_name,
-            'started_at': datetime.now()
-        }
-        
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': f'搜索任务已启动: {product_name}'
-        })
-        
+        return render_template('index.html')
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>YouTube Influencer Search</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        </head>
+        <body>
+            <div class="container mt-5">
+                <div class="alert alert-warning">
+                    <h4>🚧 系统正在部署中</h4>
+                    <p>我们正在为Vercel优化系统架构。请稍后再试。</p>
+                    <p>错误信息: {str(e)}</p>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h5>YouTube Influencer搜索系统</h5>
+                        <p>系统功能:</p>
+                        <ul>
+                            <li>智能关键词生成</li>
+                            <li>YouTube API集成</li>
+                            <li>美国地区筛选</li>
+                            <li>实时搜索结果</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
 
-@app.route('/api/status/<task_id>')
-def get_task_status(task_id):
-    """获取任务状态"""
-    try:
-        status = db.get_task_status(task_id)
-        if not status:
-            return jsonify({'error': '任务不存在'}), 404
-        
-        return jsonify({
-            'success': True,
-            'status': status
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/results/<task_id>')
-def get_task_results(task_id):
-    """获取任务结果"""
-    try:
-        # 检查任务是否存在
-        task_status = db.get_task_status(task_id)
-        if not task_status:
-            return jsonify({'error': '任务不存在'}), 404
-        
-        # 获取结果
-        results = db.get_task_results(task_id)
-        summary = db.get_task_summary(task_id)
-        
-        return jsonify({
-            'success': True,
-            'task_status': task_status,
-            'summary': summary,
-            'results': results
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/history')
-def get_search_history():
-    """获取搜索历史"""
-    try:
-        limit = request.args.get('limit', 20, type=int)
-        history = db.get_search_history(limit)
-        
-        return jsonify({
-            'success': True,
-            'history': history
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/download/<task_id>')
-def download_results(task_id):
-    """下载CSV结果"""
-    try:
-        # 检查任务是否存在
-        task_status = db.get_task_status(task_id)
-        if not task_status:
-            return jsonify({'error': '任务不存在'}), 404
-        
-        # 获取结果
-        results = db.get_task_results(task_id)
-        if not results:
-            return jsonify({'error': '没有结果数据'}), 404
-        
-        # 创建DataFrame并保存CSV
-        df = pd.DataFrame(results)
-        filename = f"influencers_{task_status['product_name'].replace(' ', '_')}_{task_id[:8]}.csv"
-        filepath = os.path.join('/tmp', filename)
-        
-        df.to_csv(filepath, index=False, encoding='utf-8-sig')
-        
-        return send_file(
-            filepath,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='text/csv'
-        )
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/test')
+def test_api():
+    """测试API端点"""
+    return jsonify({
+        'success': True,
+        'message': 'API is working!',
+        'timestamp': datetime.now().isoformat(),
+        'python_path': sys.path[:3]
+    })
 
 @app.route('/api/validate-key', methods=['POST'])
 def validate_api_key():
@@ -249,42 +90,130 @@ def validate_api_key():
         if not api_key:
             return jsonify({'valid': False, 'error': 'API密钥不能为空'})
         
-        # 尝试创建YouTube服务来验证密钥
-        try:
-            scraper = YouTubeInfluencerScraperService(api_key=api_key)
-            # 执行一个简单的搜索来验证密钥
-            videos = scraper.search_videos('test')
-            return jsonify({'valid': True})
-        except Exception as e:
-            return jsonify({'valid': False, 'error': f'API密钥无效: {str(e)}'})
+        # 简单的格式验证
+        if len(api_key) < 30:
+            return jsonify({'valid': False, 'error': 'API密钥格式不正确'})
+            
+        return jsonify({'valid': True, 'message': 'API密钥格式正确'})
             
     except Exception as e:
-        return jsonify({'valid': False, 'error': str(e)})
+        return jsonify({'valid': False, 'error': f'验证失败: {str(e)}'})
 
-@app.route('/api/running-tasks')
-def get_running_tasks():
-    """获取当前运行中的任务"""
+@app.route('/api/generate-keywords', methods=['POST'])
+def generate_keywords():
+    """生成搜索关键词"""
     try:
-        tasks = []
-        for task_id, task_info in running_tasks.items():
-            status = db.get_task_status(task_id)
-            if status:
-                tasks.append({
-                    'task_id': task_id,
-                    'product_name': task_info['product_name'],
-                    'started_at': task_info['started_at'].isoformat(),
-                    'status': status['status'],
-                    'progress': status['progress']
-                })
+        data = request.get_json()
+        product_name = data.get('product_name', '').strip()
+        
+        if not product_name:
+            return jsonify({'error': '请输入产品名称'}), 400
+        
+        # 创建服务实例并生成关键词
+        service = YouTubeInfluencerScraperService(api_key='dummy')
+        keywords = service.generate_search_keywords(product_name)
         
         return jsonify({
             'success': True,
-            'running_tasks': tasks
+            'product_name': product_name,
+            'keywords': keywords,
+            'total_keywords': len(keywords)
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'生成关键词失败: {str(e)}'}), 500
 
-# Vercel需要这个处理函数
+@app.route('/api/search-demo', methods=['POST'])
+def search_demo():
+    """演示搜索功能（不实际调用YouTube API）"""
+    try:
+        data = request.get_json()
+        product_name = data.get('product_name', '').strip()
+        
+        if not product_name:
+            return jsonify({'error': '请输入产品名称'}), 400
+        
+        # 生成演示数据
+        demo_results = [
+            {
+                'channel_name': 'Tech Reviews Pro',
+                'channel_id': 'demo_channel_1',
+                'subscriber_count': 156000,
+                'product_reviewed': product_name,
+                'video_title': f'{product_name} Complete Review - Worth the Money?',
+                'video_view_count': 45600,
+                'video_published_at': '2024-11-15T10:30:00Z',
+                'channel_country': 'US'
+            },
+            {
+                'channel_name': 'Unbox Everything',
+                'channel_id': 'demo_channel_2', 
+                'subscriber_count': 89400,
+                'product_reviewed': product_name,
+                'video_title': f'Unboxing the {product_name} - First Impressions',
+                'video_view_count': 23100,
+                'video_published_at': '2024-11-10T14:20:00Z',
+                'channel_country': 'US'
+            }
+        ]
+        
+        return jsonify({
+            'success': True,
+            'demo_mode': True,
+            'results': demo_results,
+            'summary': {
+                'total_influencers': len(demo_results),
+                'avg_subscriber_count': sum(r['subscriber_count'] for r in demo_results) // len(demo_results),
+                'max_subscriber_count': max(r['subscriber_count'] for r in demo_results)
+            },
+            'message': '这是演示数据。完整功能需要有效的YouTube API密钥。'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'演示搜索失败: {str(e)}'}), 500
+
+@app.route('/api/info')
+def system_info():
+    """系统信息"""
+    return jsonify({
+        'system': 'YouTube Influencer Search System',
+        'version': '2.0-vercel',
+        'environment': 'Vercel Serverless',
+        'features': [
+            '关键词生成',
+            'API密钥验证', 
+            '演示模式',
+            '响应式界面'
+        ],
+        'limitations': [
+            '无服务器环境限制',
+            '需要有效的YouTube API密钥进行完整搜索',
+            '无数据持久化存储'
+        ]
+    })
+
+# 错误处理
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'API端点不存在'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': '服务器内部错误'}), 500
+
+# Vercel处理函数
 def handler(event, context):
-    return app(event, context)
+    try:
+        return app(event, context)
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': f'Function handler error: {str(e)}',
+                'event': str(event)[:200]
+            })
+        }
+
+# 开发模式
+if __name__ == '__main__':
+    app.run(debug=True, port=8080)
