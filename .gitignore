@@ -1,3 +1,13 @@
+node_modules/
+.DS_Store
+.vercel/
+.env
+*.log
+coverage/
+dist/
+build/
+tmp/
+*.local
 # 字节编译文件
 __pycache__/
 *.py[cod]

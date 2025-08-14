@@ -1,0 +1,34 @@
+{
+  "name": "youtube-influencer-search",
+  "version": "3.0.0",
+  "description": "智能搜索和分析测评过指定产品的YouTube影响者",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node -e \"console.log('Use: npx vercel dev')\"",
+    "build": "echo 'No build needed for serverless functions'",
+    "start": "node -e \"console.log('Use: npx vercel dev')\""
+  },
+  "keywords": [
+    "youtube",
+    "influencer",
+    "search",
+    "marketing",
+    "vercel",
+    "nodejs"
+  ],
+  "author": "YouTube Influencer Search System",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "nanoid": "^5.0.7"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KevinWangQQ/youtube-influencer-search.git"
+  }
+}
