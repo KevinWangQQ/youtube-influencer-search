@@ -10,8 +10,8 @@ module.exports = async (req, res) => {
     const { apiKey } = parsed || {};
     if (!apiKey) return sendJson(res, 400, { valid: false, error: 'apiKey is required' });
     // Simple validation: call a cheap endpoint
-    const url = 'https://www.googleapis.com/youtube/v3/videos';
-    const params = { key: apiKey, id: 'dQw4w9WgXcQ', part: 'id' };
+    const url = 'https://www.googleapis.com/youtube/v3/search';
+    const params = { key: apiKey, q: 'test', type: 'video', part: 'id', maxResults: 1 };
     await axios.get(url, { params });
     return sendJson(res, 200, { valid: true });
   } catch (e) {

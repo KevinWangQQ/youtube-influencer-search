@@ -42,7 +42,7 @@ module.exports = async (req, res) => {
     for (const kw of keywords) insertKeyword.run(taskId, kw);
     return sendJson(res, 200, { taskId, keywords });
   } catch (e) {
-    return sendJson(res, 500, { error: e.message || 'Internal error' });
+    return sendJson(res, 500, { error: e?.response?.data?.error?.message || e.message || 'Internal error' });
   }
 };
 
