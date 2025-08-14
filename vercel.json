@@ -1,9 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/*.js": {
-      "runtime": "@vercel/node@22"
-    }
+    "api/*.js": { "runtime": "nodejs22.x" }
   },
   "cleanUrls": true,
   "trailingSlash": false
