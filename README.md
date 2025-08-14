@@ -4,8 +4,8 @@
 
 一个完整的Web应用系统，支持自定义机型搜索、实时进度监控、数据持久化存储和结果导出。
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Flask](https://img.shields.io/badge/Flask-3.1+-green.svg)
+![Node.js](https://img.shields.io/badge/Node.js-22+-green.svg)
+![Vercel](https://img.shields.io/badge/Vercel-Serverless-black.svg)
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-5.1+-purple.svg)
 ![SQLite](https://img.shields.io/badge/SQLite-3.0+-lightgrey.svg)
 
@@ -53,11 +53,11 @@
 ```
 📱 前端界面 (Bootstrap + JavaScript)
          ↓ RESTful API
-🌐 Flask API 服务 (多线程任务处理)  
+🌐 Node.js 22 无服务函数 (Vercel Functions, 逐步轮询处理)  
          ↓ 动态配置
-🤖 YouTube爬虫服务 (智能关键词生成)
+🤖 YouTube数据服务 (关键词生成 + Data API v3)
          ↓ 数据持久化
-🗄️ SQLite数据库 (任务和结果存储)
+🗄️ SQLite数据库 (任务与结果存储)
 ```
 
 ## 🚀 快速开始
@@ -70,7 +70,7 @@ cd youtube-influencer-search
 
 ### 2. 安装依赖
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
 ### 3. 获取YouTube API密钥
@@ -82,11 +82,11 @@ pip install -r requirements.txt
 
 ### 4. 启动系统
 ```bash
-python app.py
+npx vercel dev
 ```
 
 ### 5. 访问系统
-打开浏览器访问：`http://localhost:8080`
+打开浏览器访问：`http://localhost:3000`
 
 ## 📝 使用说明
 
@@ -141,9 +141,9 @@ POST /api/search
 启动搜索任务
 
 ```http  
-GET /api/status/{task_id}
+GET /api/status?task_id={task_id}
 ```
-获取任务状态
+获取任务状态（需在请求头中携带 `X-YouTube-Key: <Your API Key>` 以便函数在无状态环境下进行下一步查询）
 
 ```http
 GET /api/results/{task_id}
@@ -170,50 +170,48 @@ POST /api/validate-key
 
 ```
 youtube-influencer-search/
-├── 📄 app.py                    # Flask主应用
-├── 🤖 scraper_service.py        # YouTube爬虫服务
-├── 🗄️ models.py                # SQLite数据库模型
-├── 📋 requirements.txt          # Python依赖包
-├── 📁 templates/
-│   └── 🌐 index.html           # 前端HTML模板
-├── 📁 static/
-│   └── 📁 js/
-│       └── ⚡ app.js           # 前端JavaScript逻辑
-├── 📁 temp/                    # 临时文件目录
-├── 🗃️ database.db              # SQLite数据库文件
+├── 📁 api/                      # Vercel Serverless Functions (Node.js 22)
+│   ├── index.js                # 健康检查
+│   ├── search.js               # 启动任务 (生成关键词并初始化任务)
+│   ├── status.js               # 逐步处理关键词并更新进度（需要 X-YouTube-Key）
+│   ├── results.js              # 获取任务结果与摘要
+│   ├── history.js              # 获取历史任务
+│   ├── download.js             # 导出CSV
+│   ├── validate-key.js         # 验证API密钥
+│   ├── db.js                   # SQLite 数据访问层（支持只读FS回退到 /tmp）
+│   ├── utils.js                # 关键词生成与YouTube API封装
+│   └── _http.js                # 轻量HTTP工具
+├── 📁 public/
+│   ├── index.html              # 前端页面 (Bootstrap)
+│   └── app.js                  # 前端逻辑，进度轮询/渲染/导出
+├── 🗃️ database.db              # SQLite数据库文件（本地开发持久化，云端可能位于 /tmp）
+├── 📄 vercel.json              # Vercel 配置（Node 22 运行时）
+├── 📦 package.json             # Node依赖与脚本
 └── 📖 README.md                # 项目说明文档
 ```
 
 ## 🔒 安全特性
 
-- **API密钥保护**: 数据库存储哈希值而非明文
-- **参数验证**: 严格的输入参数验证
-- **错误处理**: 完善的异常捕获和用户提示
-- **请求限制**: 自动控制API请求频率避免超限
+- **API密钥保护**: 仅存储 API Key 的哈希（任务记录中保存 `api_key_hash`），不落盘明文
+- **无状态调用**: `status` 端点通过请求头 `X-YouTube-Key` 临时获取Key，便于Serverless安全执行
+- **参数验证**: 严格的输入校验与失败处理
+- **错误处理**: 完整的异常捕获和用户提示
+- **请求限制**: 智能请求控制，避免YouTube配额超限
 
 ## 🚀 部署选项
 
 ### 本地开发
 ```bash
-python app.py  # 开发模式，端口8080
+npm install
+npx vercel dev
 ```
 
-### 生产部署
+### Vercel 一键部署
 ```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8080 app:app
+npm i -g vercel
+vercel
 ```
-
-### Docker部署
-```dockerfile
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-EXPOSE 8080
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "app:app"]
-```
+首次执行会交互式创建/绑定项目，之后 `vercel --prod` 即可推送生产。
 
 ## 📈 性能表现
 
