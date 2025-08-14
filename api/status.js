@@ -34,7 +34,7 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, { id: task.id, status: 'completed', progress: 100, productName: task.product_name, createdAt: task.created_at });
     }
 
-    const searchItems = await youtubeSearch({ apiKey, query: next.keyword, maxResults: Math.min(50, task.max_results) });
+    const searchItems = await youtubeSearch({ apiKey, query: next.keyword, maxResults: Math.min(50, task.max_results || 50) });
     const channelIds = Array.from(new Set(searchItems.map((i) => i.snippet?.channelId).filter(Boolean)));
     const videoIds = Array.from(new Set(searchItems.map((i) => i.id?.videoId).filter(Boolean)));
     const [channelMap, videoMap] = await Promise.all([

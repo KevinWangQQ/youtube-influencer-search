@@ -2,13 +2,10 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 function openDatabase() {
-  const primaryPath = path.join(process.cwd(), 'database.db');
-  try {
-    return new Database(primaryPath);
-  } catch (e) {
-    const tmpPath = path.join('/tmp', 'database.db');
-    return new Database(tmpPath);
-  }
+  // On Vercel, the filesystem is read-only except /tmp. Always use /tmp there.
+  const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL_ENV;
+  const dbPath = isVercel ? path.join('/tmp', 'database.db') : path.join(process.cwd(), 'database.db');
+  return new Database(dbPath);
 }
 
 const db = openDatabase();

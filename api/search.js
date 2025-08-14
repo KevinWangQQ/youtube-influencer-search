@@ -36,6 +36,9 @@ module.exports = async (req, res) => {
 
     // Initialize keywords for stepwise polling
     const keywords = generateKeywords(productName);
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+      return sendJson(res, 400, { error: 'Failed to generate keywords' });
+    }
     for (const kw of keywords) insertKeyword.run(taskId, kw);
     return sendJson(res, 200, { taskId, keywords });
   } catch (e) {

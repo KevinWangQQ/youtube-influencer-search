@@ -146,7 +146,12 @@ form.addEventListener('submit', async (e) => {
     };
   } catch (err) {
     loading.style.display = 'none';
-    alert('搜索失败，请检查API密钥或稍后重试');
+    try {
+      const text = err?.message || '';
+      alert(`搜索失败：${text || '请检查API密钥或稍后重试'}`);
+    } catch (_) {
+      alert('搜索失败，请检查API密钥或稍后重试');
+    }
   }
 });
 
